@@ -56,11 +56,11 @@ Promise.all([
   const groups = ["optype", "emop"];
 
   vitalSelect.selectAll("option")
-    .data(vitals)
-    .enter()
-    .append("option")
-    .text(d => d.toUpperCase())
-    .attr("value", d => d);
+  .data(vitals)
+  .enter()
+  .append("option")
+  .text(d => d.toUpperCase())
+  .attr("value", d => d.toLowerCase());
 
   groupSelect.selectAll("option")
     .data(groups)
