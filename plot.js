@@ -54,8 +54,8 @@ const color = d3.scaleOrdinal(d3.schemeCategory10);
 let activeGroups = new Set();
 
 Promise.all([
-  d3.csv("data/long_surgery_1300_vitals.csv", d3.autoType),
-  d3.csv("data/anesthetic_start_times.csv", d3.autoType)
+  d3.csv("data/old_long_surgery_vitals.csv", d3.autoType),
+  d3.csv("data/old_anesthetic_start_times.csv", d3.autoType)
 ]).then(([data, anesthetics]) => {
   data.forEach(d => d.signal = d.signal.toLowerCase());
 
