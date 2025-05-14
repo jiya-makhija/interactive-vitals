@@ -108,12 +108,16 @@ Promise.all([
       const binned = d3.groups(values, d => Math.round(d.norm_time / binSize) * binSize)
         .map(([t, pts]) => {
           const v = pts.map(p => p.value);
+          const mean = d3.mean(v);
+          const sd = d3.deviation(v);
           return {
             norm_time: +t,
-            mean: d3.mean(v),
-            sd: d3.deviation(v)
+            mean: mean,
+            sd: sd,
+            value: v[0] // just grab the first one for now — can refine later
           };
         });
+      
       return { key, values: binned.sort((a, b) => a.norm_time - b.norm_time) };
     });
     //visable being the types of surgey we want to dispaly 
@@ -125,6 +129,44 @@ Promise.all([
     ]);
 
     svg.select(".x-axis").call(xAxis);
+
+    
+  // Add shaded zones only for danger area
+  if (
+    vitalSelect.property("value").toLowerCase() === "map" &&
+    groupSelect.property("value") === "optype"
+  ){
+    const yMin = y.domain()[0];
+    const yMax = y.domain()[1];
+
+    const dangerZones = [
+      {
+        label: "Dangerously Low (< 60)",
+        min: Math.max(0, yMin),
+        max: Math.min(60, yMax),
+        color: "#fdd"
+      },
+      {
+        label: "Potentially High (> 120)",
+        min: Math.max(120, yMin),
+        max: Math.min(200, yMax),
+        color: "#ffe5b4"
+      }
+    ];
+
+    dangerZones.forEach(zone => {
+      if (zone.min < zone.max) {
+        svg.append("rect")
+          .attr("class", "danger-zone")
+          .attr("x", 0)
+          .attr("width", width)
+          .attr("y", y(zone.max))
+          .attr("height", y(zone.min) - y(zone.max))
+          .attr("fill", zone.color)
+          .attr("opacity", 0.2);
+      }
+    });
+  }
     svg.select(".y-axis").call(yAxis);
 
     svg.selectAll(".line").data(visible, d => d.key)
@@ -134,14 +176,6 @@ Promise.all([
       .attr("stroke", d => color(d.key))
       .attr("stroke-width", 2)
       .attr("d", d => line(d.values));
-
-    svg.selectAll(".area").data(visible, d => d.key)
-      .join("path")
-      .attr("class", "area")
-      .attr("fill", d => color(d.key))
-      .attr("fill-opacity", 0.2)
-      .attr("stroke", "none")
-      .attr("d", d => area(d.values));
 
     // Added anesthesia start markers
     svg.selectAll(".drug-marker").remove();
@@ -245,9 +279,84 @@ Promise.all([
       .attr("class", "legend-color")
       .style("background-color", d => color(d));
 
+      if (
+        vitalSelect.property("value").toLowerCase() === "map" &&
+        groupSelect.property("value") === "optype"
+      ) {
+        [
+          { label: "Dangerously Low (< 60)", color: "#fdd" },
+          { label: "Potentially High (> 120)", color: "#ffe5b4" }
+        ].forEach(zone => {
+          const item = legendContainer.append("div")
+            .attr("class", "legend-item")
+            .style("opacity", 1);
+      
+          item.append("span")
+            .attr("class", "legend-color")
+            .style("background-color", zone.color);
+      
+          item.append("span")
+            .attr("class", "legend-label")
+            .text(zone.label);
+        });
+      }
+
+
     legendItems.append("span")
       .attr("class", "legend-label")
       .text(d => d.length > 20 ? d.slice(0, 18) + "…" : d);
+
+// Remove old hover points
+svg.selectAll(".hover-point").remove();
+
+  // Add hover dots + tooltip
+  visible.forEach(group => {
+    const groupKey = group.key;
+    const groupColor = color(groupKey);
+
+    svg.selectAll(`.hover-point-${groupKey}`)
+      .data(group.values)
+      .enter()
+      .append("circle")
+      .attr("class", "hover-point")
+      .attr("cx", d => x(d.norm_time))
+      .attr("cy", d => y(d.mean))
+      .attr("r", 5)
+      .attr("fill", groupColor)
+      .attr("fill-opacity", 0)
+      .attr("stroke", "none")
+      .on("mouseover", function(event, d) {
+        const zScore = d.sd ? ((d.value - d.mean) / d.sd).toFixed(2) : "N/A";
+
+        d3.select(this)
+          .transition().duration(100)
+          .attr("r", 6)
+          .attr("fill-opacity", 0.4);
+
+        tooltip
+          .style("opacity", 1)
+          .html(`
+            <strong>${selectedVital.toUpperCase()}</strong><br>
+            Value: ${d.value?.toFixed(1) ?? "N/A"}<br>
+            Mean: ${d.mean?.toFixed(1) ?? "N/A"}<br>
+            SD: ${d.sd?.toFixed(1) ?? "N/A"}<br>
+            Z-score: ${zScore}
+          `)
+          .style("left", (event.pageX + 10) + "px")
+          .style("top", (event.pageY - 28) + "px");
+      })
+      .on("mouseout", function() {
+        d3.select(this)
+          .transition().duration(100)
+          .attr("r", 5)
+          .attr("fill-opacity", 0);
+
+        tooltip.style("opacity", 0);
+      });
+  });
+
+
+
   }
 
   vitalSelect.on("change", updateChart);
