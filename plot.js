@@ -54,11 +54,15 @@ const groupSelect = d3.select("#groupSelect");
 let activeGroups = new Set();
 
 //loading all data
-Promise.all([
-    d3.csv("data/long_surgery_vitals.csv", d3.autoType),
-    d3.csv("data/anesthetic_start_times.csv", d3.autoType)
-    ]).then(([data, anesthetics]) => {
-    data.forEach(d => d.signal = d.signal.toLowerCase());
+  Promise.all([
+  fetch("data/surgery_vitals_index.csv.zip")
+    .then(res => res.blob())
+    .then(JSZip.loadAsync)
+    .then(zip => zip.file("surgery_vitals_index.csv").async("string"))
+    .then(content => d3.csvParse(content, d3.autoType)),
+
+  d3.csv("data/anesthetic_start_times.csv", d3.autoType)
+]).then(([data, anesthetics]) => {
 
     const allDrugs = [...new Set(anesthetics
         .map(d => d.tname)
